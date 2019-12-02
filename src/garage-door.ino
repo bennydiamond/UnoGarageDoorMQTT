@@ -12,6 +12,7 @@
 // Define Libraries
 #include <Ethernet.h>
 #include <PubSubClient.h>
+#include <DHT.h>
 #include <limits.h>
 
 // Define Sub's and Pub's

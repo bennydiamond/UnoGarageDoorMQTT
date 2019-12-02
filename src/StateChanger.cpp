@@ -1,10 +1,7 @@
 #include "StateChanger.h"
+#include "pins.h"
 #include <Arduino.h>
 #include <stddef.h>
-
-// Define Arduino PIN's
-#define PINLED 13     // Onboard LED - Activation Indicator
-#define PINRELAY 7    // Relay module - trigger door here
 
 uint16_t const StateChanger::retryTimeout_ms = 3000;
 uint8_t const StateChanger::MaxRetryCount = 5;

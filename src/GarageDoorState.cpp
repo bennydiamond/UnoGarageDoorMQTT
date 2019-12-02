@@ -1,8 +1,6 @@
 #include "GarageDoorState.h"
+#include "pins.h"
 #include <Arduino.h>
-
-#define PINOPEN 5     // Door Open PIN - Reed switch for door open
-#define PINCLOSED 6   // Door Closed PIN - Reed switch for door shut
 
 uint8_t const GarageDoorState::TransitionTimeoutCount = 20;
 uint8_t const GarageDoorState::StateHoldTimeCount = 3;
