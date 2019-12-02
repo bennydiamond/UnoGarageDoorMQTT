@@ -9,16 +9,19 @@
 #include "GarageDoorState.h"
 #include "StateChanger.h"
 #include "WebServer.h"
+#include "pins.h"
 // Define Libraries
+#include "DHTmod.h"
 #include <Ethernet.h>
 #include <PubSubClient.h>
-#include <DHT.h>
 #include <limits.h>
 
 // Define Sub's and Pub's
 #define MQTTSubDoorSwitch "garage/door/switch"
 #define MQTTPubDoorStatus "garage/door/status"
 #define MQTTPubAvailable "garage/door/available"
+#define MQTTPubTemperature "garage/door/temperature"
+#define MQTTPubHumidity "garage/door/humidity"
 #define MQTTBrokerrUser "sonoff"
 #define MQTTBrokerrPass "sonoff"
 #define MQTTAvailablePayload "online"
@@ -27,6 +30,7 @@
 #define StateCheckInterval_ms 1000
 #define PublishStatusInterval_ms 2000
 #define PublishAvailableInterval_ms 30000
+#define PublishTemperatureInterval_ms 60000
 #define willQos (0)
 #define willRetain (0)
 
@@ -44,8 +48,9 @@ IPAddress subnet(255,255,254,0);
 
 
 // Delay timer
-static uint32_t publishStatusTimer = 0;
-static uint32_t publishAvailabilityTimer = 0;
+static uint32_t publishStatusTimer;
+static uint32_t publishAvailabilityTimer;
+static uint32_t publishTemperatureTimer;
 static uint32_t StateCheck = 0;
 static unsigned long previous;
 
@@ -54,6 +59,7 @@ EthernetClient ethClient;
 GarageDoorState garageDoorState;
 StateChanger stateChanger;
 WebServer webServer;
+DHTmod dht;
 
 // Callback to Arduino from MQTT (inbound message arrives for a subscription - in this case the door on/off switch)
 void callback (char* topic, uint8_t* payload, unsigned int length) 
@@ -95,6 +101,14 @@ void setup (void)
     // Start Serial
   Serial.begin(115200);
 
+  uint32_t shift = 0;
+
+  publishStatusTimer = shift;
+  shift += 17;
+  publishAvailabilityTimer = shift;
+  shift += 17;
+  publishTemperatureTimer = shift;
+
   stateChanger.bindGarageDoorState(&garageDoorState);
   stateChanger.bindWebServer(&webServer);
   garageDoorState.bindWebServer(&webServer);
@@ -106,6 +120,8 @@ void setup (void)
 
   // Start Network (replace with 'Ethernet.begin(mac, ip);' for fixed IP)
   Ethernet.begin(mac, ip, dns, gateway, subnet);
+
+  dht.setup(DHTPIN, DHTmod::DHT22);
 
   // Let network have a chance to start up
   delay(1500);
@@ -155,6 +171,29 @@ void loop (void)
     PublishMQTTMessage(MQTTPubAvailable, MQTTAvailablePayload);  
     webServer.placeString("Pub: ");
     webServer.placeString(MQTTAvailablePayload);
+    webServer.placeString(LINE_BREAK);
+  }
+  if(0 == publishTemperatureTimer)
+  {
+    publishTemperatureTimer = PublishTemperatureInterval_ms;
+
+    dht.readSensor();
+    float const temp = dht.getTemperatureValue();
+    float const hum = dht.getHumidityValue();
+
+    char format[7];
+    snprintf(format, 7, "%.2f", static_cast<double>(temp));
+
+    PublishMQTTMessage(MQTTPubTemperature, format);  
+    webServer.placeString("Pub: ");
+    webServer.placeString(format);
+    webServer.placeString(LINE_BREAK);
+
+    snprintf(format, 7, "%.2f", static_cast<double>(hum));
+
+    PublishMQTTMessage(MQTTPubHumidity, format);  
+    webServer.placeString("Pub: ");
+    webServer.placeString(format);
     webServer.placeString(LINE_BREAK);
   }
   // Do it all over again
@@ -224,6 +263,11 @@ static void advanceTimers (void)
     if(publishAvailabilityTimer)
     {
       publishAvailabilityTimer--;
+    }
+
+    if(publishTemperatureTimer)
+    {
+      publishTemperatureTimer--;
     }
   }
 }

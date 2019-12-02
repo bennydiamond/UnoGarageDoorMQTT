@@ -3,3 +3,5 @@
 
 #define PINLED 13     // Onboard LED - Activation Indicator
 #define PINRELAY 7    // Relay module - trigger door here
+
+#define DHTPIN 2      // DHT Temperature sensor data pin
