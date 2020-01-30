@@ -11,7 +11,7 @@
 #include "WebServer.h"
 #include "pins.h"
 // Define Libraries
-#include "DHTmod.h"
+#include <AM232X.h>
 #include <Ethernet.h>
 #include <PubSubClient.h>
 #include <limits.h>
@@ -59,7 +59,8 @@ EthernetClient ethClient;
 GarageDoorState garageDoorState;
 StateChanger stateChanger;
 WebServer webServer;
-DHTmod dht;
+
+AM232X AM2320;
 
 // Callback to Arduino from MQTT (inbound message arrives for a subscription - in this case the door on/off switch)
 void callback (char* topic, uint8_t* payload, unsigned int length) 
@@ -121,8 +122,6 @@ void setup (void)
   // Start Network (replace with 'Ethernet.begin(mac, ip);' for fixed IP)
   Ethernet.begin(mac, ip, dns, gateway, subnet);
 
-  dht.setup(DHTPIN, DHTmod::DHT22);
-
   // Let network have a chance to start up
   delay(1500);
 
@@ -177,24 +176,26 @@ void loop (void)
   {
     publishTemperatureTimer = PublishTemperatureInterval_ms;
 
-    dht.readSensor();
-    float const temp = dht.getTemperatureValue();
-    float const hum = dht.getHumidityValue();
+    if(AM232X_OK == AM2320.read())
+    {
+      float const temp = AM2320.temperature;
+      float const hum = AM2320.humidity;
 
-    char format[7];
-    snprintf(format, 7, "%.2f", static_cast<double>(temp));
+      char format[7];
+      snprintf(format, 7, "%.2f", static_cast<double>(temp));
 
-    PublishMQTTMessage(MQTTPubTemperature, format);  
-    webServer.placeString("Pub: ");
-    webServer.placeString(format);
-    webServer.placeString(LINE_BREAK);
+      PublishMQTTMessage(MQTTPubTemperature, format);  
+      webServer.placeString("Pub: ");
+      webServer.placeString(format);
+      webServer.placeString(LINE_BREAK);
 
-    snprintf(format, 7, "%.2f", static_cast<double>(hum));
+      snprintf(format, 7, "%.2f", static_cast<double>(hum));
 
-    PublishMQTTMessage(MQTTPubHumidity, format);  
-    webServer.placeString("Pub: ");
-    webServer.placeString(format);
-    webServer.placeString(LINE_BREAK);
+      PublishMQTTMessage(MQTTPubHumidity, format);  
+      webServer.placeString("Pub: ");
+      webServer.placeString(format);
+      webServer.placeString(LINE_BREAK);
+    }
   }
   // Do it all over again
   mqttClient.loop();
