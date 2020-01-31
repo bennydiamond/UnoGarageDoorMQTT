@@ -123,11 +123,11 @@ void setup (void)
   Ethernet.begin(mac, ip, dns, gateway, subnet);
 
   // Digital IO 17 act as GND for AM2320B sensor
-  pinMode(17, OUTPUT);
-  digitalWrite(17, LOW);
+  pinMode(AM2320_PINGND, OUTPUT);
+  digitalWrite(AM2320_PINGND, LOW);
   // Digital IO 16 act as +5V for AM2320B sensor
-  pinMode(16, OUTPUT);
-  digitalWrite(16, HIGH);
+  pinMode(AM2320_PINVCC, OUTPUT);
+  digitalWrite(AM2320_PINVCC, HIGH);
 
   AM2320.begin();
   webServer.placeString("Temp/Hum sensor ");
