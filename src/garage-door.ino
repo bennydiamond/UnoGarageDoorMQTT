@@ -122,6 +122,25 @@ void setup (void)
   // Start Network (replace with 'Ethernet.begin(mac, ip);' for fixed IP)
   Ethernet.begin(mac, ip, dns, gateway, subnet);
 
+  // Digital IO 17 act as GND for AM2320B sensor
+  pinMode(17, OUTPUT);
+  digitalWrite(17, LOW);
+  // Digital IO 16 act as +5V for AM2320B sensor
+  pinMode(16, OUTPUT);
+  digitalWrite(16, HIGH);
+
+  AM2320.begin();
+  webServer.placeString("Temp/Hum sensor ");
+
+  char szSensor[10];
+  webServer.placeString("Model:");
+  snprintf(szSensor, 10, "%d ", AM2320.getModel());
+  webServer.placeString("DevID:");
+  snprintf(szSensor, 10, "%u ", AM2320.getDeviceID());
+  webServer.placeString("Version:");
+  snprintf(szSensor, 10, "%d", AM2320.getVersion());
+  webServer.placeString(LINE_BREAK);
+
   // Let network have a chance to start up
   delay(1500);
 
