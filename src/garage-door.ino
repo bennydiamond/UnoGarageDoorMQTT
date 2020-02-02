@@ -101,6 +101,7 @@ void setup (void)
 {
     // Start Serial
   Serial.begin(115200);
+  webServer.placeString("Hello World!" LINE_BREAK);
 
   uint32_t shift = 0;
 
@@ -115,12 +116,12 @@ void setup (void)
   garageDoorState.bindWebServer(&webServer);
 
   // LED off, visual indicator when triggered
-  webServer.placeString("Hello World!" LINE_BREAK);
 
   previous = 0;
 
   // Start Network (replace with 'Ethernet.begin(mac, ip);' for fixed IP)
   Ethernet.begin(mac, ip, dns, gateway, subnet);
+  webServer.placeString("Ethernet init" LINE_BREAK);
 
   // Digital IO 17 act as GND for AM2320B sensor
   pinMode(AM2320_PINGND, OUTPUT);
@@ -130,16 +131,7 @@ void setup (void)
   digitalWrite(AM2320_PINVCC, HIGH);
 
   AM2320.begin();
-  webServer.placeString("Temp/Hum sensor ");
-
-  char szSensor[10];
-  webServer.placeString("Model:");
-  snprintf(szSensor, 10, "%d ", AM2320.getModel());
-  webServer.placeString("DevID:");
-  snprintf(szSensor, 10, "%u ", AM2320.getDeviceID());
-  webServer.placeString("Version:");
-  snprintf(szSensor, 10, "%d", AM2320.getVersion());
-  webServer.placeString(LINE_BREAK);
+  webServer.placeString("Temp/Hum sensor init" LINE_BREAK);
 
   // Let network have a chance to start up
   delay(1500);
@@ -201,19 +193,12 @@ void loop (void)
       float const hum = AM2320.humidity;
 
       char format[7];
-      snprintf(format, 7, "%.2f", static_cast<double>(temp));
 
+      dtostrf(temp, 4, 2, format);
       PublishMQTTMessage(MQTTPubTemperature, format);  
-      webServer.placeString("Pub: ");
-      webServer.placeString(format);
-      webServer.placeString(LINE_BREAK);
 
-      snprintf(format, 7, "%.2f", static_cast<double>(hum));
-
+      dtostrf(hum, 4, 2, format);
       PublishMQTTMessage(MQTTPubHumidity, format);  
-      webServer.placeString("Pub: ");
-      webServer.placeString(format);
-      webServer.placeString(LINE_BREAK);
     }
   }
   // Do it all over again
