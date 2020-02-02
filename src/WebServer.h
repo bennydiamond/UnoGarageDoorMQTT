@@ -20,7 +20,7 @@ public:
     void placeString (char const * const szIn);
 
 private:
-    #define logBufferSize 250
+    #define logBufferSize 240
 
     EthernetServer server;
     RingBuf<char, logBufferSize> ringBuf;
