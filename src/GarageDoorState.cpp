@@ -45,12 +45,10 @@ void GarageDoorState::run (void)
         checkCurrentState();
         if(-1 != timeoutCounter)
         {
-            char count[3];
-            webServer->placeString("Timeout: ");
-            snprintf(count, 3, "%d", timeoutCounter);
-            webServer->placeString(count);
-            webServer->placeString(LINE_BREAK);
-            webServer->placeString("State not reached." LINE_BREAK);
+            char sz[20];
+            snprintf(sz, 128, "Timeout:  %d" LINE_BREAK, timeoutCounter);
+            webServer->placeString(sz);
+            webServer->placeString(String_StateNotReached);
         }
 
         if(targetDoorState == lastKnownDoorState && false == inTransition)
@@ -60,7 +58,7 @@ void GarageDoorState::run (void)
             {
                 timeoutCounter = -1;
                 stateReachFailed = false;
-                webServer->placeString("State reached." LINE_BREAK);
+                webServer->placeString(String_StateReached);
             }
             else
             {
@@ -75,7 +73,7 @@ void GarageDoorState::run (void)
 
         if(0 == timeoutCounter)
         {
-            webServer->placeString("State reach failed." LINE_BREAK);
+            webServer->placeString(String_StateReachFailed);
             stateReachFailed = true;
             stateHoldCounter = 0;
         }
@@ -98,7 +96,7 @@ void GarageDoorState::relayIsToggled (void)
     // If stopped
     if(inTransition)
     {
-        webServer->placeString("Door Stopped mid" LINE_BREAK);
+        webServer->placeString(String_DoorStoppedMid);
         doorStoppedMid = false;
         if(DoorState_Close == targetDoorState)
         {
@@ -132,7 +130,7 @@ void GarageDoorState::checkCurrentState (void)
     if(openSensor && closeSensor)
     {
       // Both sensors show true at the same time... Error!
-      webServer->placeString("Sensor Error" LINE_BREAK);
+      webServer->placeString(String_SensorError);
       lastKnownDoorState = DoorState_Unknown;
     }
     else if(openSensor) 
@@ -159,10 +157,9 @@ void GarageDoorState::checkCurrentState (void)
         }
     }
 
-    webServer->placeString("LastKnownState: ");
-    webServer->placeString(DoorStateStrings[lastKnownDoorState]);
-    webServer->placeString(LINE_BREAK);
-    webServer->placeString("TargetState: ");
-    webServer->placeString(DoorStateStrings[targetDoorState]);
-    webServer->placeString(LINE_BREAK);
+    char sz[30];
+    snprintf(sz, 30, "LastKnownState: %s" LINE_BREAK, DoorStateStrings[lastKnownDoorState]);
+    webServer->placeString(sz);
+    snprintf(sz, 30, "TargetState: %s" LINE_BREAK, DoorStateStrings[targetDoorState]);
+    webServer->placeString(sz);
 }
