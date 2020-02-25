@@ -1,10 +1,19 @@
 #include "WebServer.h"
+#include "strings.h"
+
+// Syslog server connection info
+IPAddress const SYSLOG_SERVER(192, 168, 0, 254) PROGMEM;
+#define SYSLOG_PORT 514
+// This device info
+#define DEVICE_HOSTNAME "garagedooropener"
+#define APP_NAME "garagedooropener"
 
 WebServer::WebServer() :
 server(80),
-ringBuf()
+ringBuf(),
+udpClient(),
+syslog(udpClient, SYSLOG_SERVER, SYSLOG_PORT, DEVICE_HOSTNAME, APP_NAME, LOG_KERN, SYSLOG_PROTO_IETF)
 {
-
 }
 
 WebServer::~WebServer()
@@ -16,7 +25,8 @@ void WebServer::run (void)
 EthernetClient client = server.available();
   if (client) 
   {
-    Serial.println("new client");
+    Serial.println(String_NewWebClient);
+    syslog.log(String_NewWebClient);
     // an http request ends with a blank line
     bool currentLineIsBlank = true;
     while (client.connected()) 
@@ -72,11 +82,15 @@ EthernetClient client = server.available();
   }
 }
 
-void WebServer::placeString (char const * const szIn)
+void WebServer::placeString (char const * const szIn, bool debug)
 {
     uint16_t const len = strlen(szIn);
 
     Serial.print(szIn);
+    if(false == debug)
+    {
+      syslog.log(szIn);
+    }
 
     for(uint16_t i = 0; i < len; i++)
     {

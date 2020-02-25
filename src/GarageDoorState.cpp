@@ -1,11 +1,12 @@
 #include "GarageDoorState.h"
 #include "pins.h"
+#include "strings.h"
 #include <Arduino.h>
 
-uint8_t const GarageDoorState::TransitionTimeoutCount = 20;
-uint8_t const GarageDoorState::StateHoldTimeCount = 3;
+uint8_t const GarageDoorState::TransitionTimeoutCount PROGMEM = 20;
+uint8_t const GarageDoorState::StateHoldTimeCount PROGMEM = 3;
 
-char const * const DoorStateStrings[] =
+char const * const DoorStateStrings[] PROGMEM =
 {
   [DoorState_Unknown] = "Unknown",
   [DoorState_Open]    = "Open",

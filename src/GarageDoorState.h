@@ -24,8 +24,8 @@ public:
     void bindWebServer (WebServer * in) { webServer = in; }
 
 private:
-    static uint8_t const TransitionTimeoutCount;
-    static uint8_t const StateHoldTimeCount;
+    static uint8_t const TransitionTimeoutCount PROGMEM;
+    static uint8_t const StateHoldTimeCount PROGMEM;
     void checkCurrentState (void);
 
     // Initial door state (assume neither closed nor open when starting)

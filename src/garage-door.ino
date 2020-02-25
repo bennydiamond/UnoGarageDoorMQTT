@@ -10,6 +10,7 @@
 #include "StateChanger.h"
 #include "WebServer.h"
 #include "pins.h"
+#include "strings.h"
 // Define Libraries
 #include <AM232X.h>
 #include <Ethernet.h>
@@ -17,34 +18,34 @@
 #include <limits.h>
 
 // Define Sub's and Pub's
-#define MQTTSubDoorSwitch "garage/door/switch"
-#define MQTTPubDoorStatus "garage/door/status"
-#define MQTTPubAvailable "garage/door/available"
-#define MQTTPubTemperature "garage/door/temperature"
-#define MQTTPubHumidity "garage/door/humidity"
-#define MQTTBrokerrUser "sonoff"
-#define MQTTBrokerrPass "sonoff"
-#define MQTTAvailablePayload "online"
-#define MQTTUnavailablePayload "offline"
+char const MQTTSubDoorSwitch[] PROGMEM = "garage/door/switch";
+char const MQTTPubDoorStatus[] PROGMEM = "garage/door/status";
+char const MQTTPubAvailable[] PROGMEM = "garage/door/available";
+char const MQTTPubTemperature[] PROGMEM = "garage/door/temperature";
+char const MQTTPubHumidity[] PROGMEM = "garage/door/humidity";
+char const MQTTBrokerrUser[] PROGMEM = "sonoff";
+#define MQTTBrokerrPass MQTTBrokerrUser
+char const MQTTAvailablePayload[] PROGMEM = "online";
+char const MQTTUnavailablePayload[] PROGMEM = "offline";
 
-#define StateCheckInterval_ms 1000
-#define PublishStatusInterval_ms 2000
-#define PublishAvailableInterval_ms 30000
-#define PublishTemperatureInterval_ms 60000
-#define willQos (0)
-#define willRetain (0)
+uint16_t const StateCheckInterval_ms PROGMEM = 1000;
+uint16_t const PublishStatusInterval_ms PROGMEM = 2000;
+uint16_t const PublishAvailableInterval_ms PROGMEM = 30000;
+uint16_t const PublishTemperatureInterval_ms PROGMEM = 60000;
+uint8_t const willQos PROGMEM = 0;
+uint8_t const willRetain PROGMEM = 0;
 
 // MQTT Broker
-IPAddress MQTT_SERVER(192, 168, 1, 254);
+IPAddress const MQTT_SERVER(192, 168, 1, 254) PROGMEM;
 
 // The IP address of the Arduino
-uint8_t mac[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 };
+uint8_t const mac[] PROGMEM = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 };
 
 // Remove remarks and alter if you want a fixed IP for the Arduino
-IPAddress ip(192, 168, 1, 200);
-IPAddress dns(192, 168, 1, 254);
-IPAddress gateway(192, 168, 0, 1);
-IPAddress subnet(255,255,254,0);
+IPAddress const ip(192, 168, 1, 200) PROGMEM;
+IPAddress const dns(192, 168, 1, 254) PROGMEM;
+IPAddress const gateway(192, 168, 0, 1) PROGMEM;
+IPAddress const subnet(255,255,254,0) PROGMEM;
 
 
 // Delay timer
@@ -115,12 +116,12 @@ void setup (void)
   garageDoorState.bindWebServer(&webServer);
 
   // LED off, visual indicator when triggered
-  webServer.placeString("Hello World!" LINE_BREAK);
+  webServer.placeString(String_HelloWorld, false);
 
   previous = 0;
 
   // Start Network (replace with 'Ethernet.begin(mac, ip);' for fixed IP)
-  Ethernet.begin(mac, ip, dns, gateway, subnet);
+  Ethernet.begin(const_cast<uint8_t *>(mac), ip, dns, gateway, subnet);
 
   // Let network have a chance to start up
   delay(1500);
@@ -136,10 +137,10 @@ void loop (void)
   if(!mqttClient.connected())  
   {
     // Connect to MQTT broker on the openhab server, retry constantly
-    while(mqttClient.connect("Porte de garage", MQTTBrokerrUser, MQTTBrokerrPass, MQTTPubAvailable, willQos, willRetain, MQTTUnavailablePayload) != 1) 
+    while(mqttClient.connect(String_PorteDeGarage, MQTTBrokerrUser, MQTTBrokerrPass, MQTTPubAvailable, willQos, willRetain, MQTTUnavailablePayload) != 1) 
     {
       char szErrorCode[10];
-      webServer.placeString("Error connecting to MQTT (State:");
+      webServer.placeString(String_ErrorConnectMQTTState);
       snprintf(szErrorCode, 10, "%d", (char)mqttClient.state());
       webServer.placeString(szErrorCode);
       webServer.placeString(")" LINE_BREAK);
@@ -159,7 +160,7 @@ void loop (void)
     // Publish Door Status
     // Send message
     PublishMQTTMessage(MQTTPubDoorStatus, garageDoorState.getDoorString());  
-    webServer.placeString("Pub Door state: ");
+    webServer.placeString(String_PubDoorState__);
     webServer.placeString(garageDoorState.getDoorString());
     webServer.placeString(LINE_BREAK);
   }
@@ -168,7 +169,7 @@ void loop (void)
     publishAvailabilityTimer = PublishAvailableInterval_ms;
 
     PublishMQTTMessage(MQTTPubAvailable, MQTTAvailablePayload);  
-    webServer.placeString("Pub: ");
+    webServer.placeString(String_Pub_);
     webServer.placeString(MQTTAvailablePayload);
     webServer.placeString(LINE_BREAK);
   }
@@ -185,14 +186,14 @@ void loop (void)
       snprintf(format, 7, "%.2f", static_cast<double>(temp));
 
       PublishMQTTMessage(MQTTPubTemperature, format);  
-      webServer.placeString("Pub: ");
+      webServer.placeString(String_Pub_);
       webServer.placeString(format);
       webServer.placeString(LINE_BREAK);
 
       snprintf(format, 7, "%.2f", static_cast<double>(hum));
 
       PublishMQTTMessage(MQTTPubHumidity, format);  
-      webServer.placeString("Pub: ");
+      webServer.placeString(String_Pub_);
       webServer.placeString(format);
       webServer.placeString(LINE_BREAK);
     }

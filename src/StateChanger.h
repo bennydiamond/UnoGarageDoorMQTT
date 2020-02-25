@@ -16,8 +16,8 @@ public:
 
     void toggleRelay (void);
 private:
-    static uint16_t const retryTimeout_ms;
-    static uint8_t const MaxRetryCount;
+    static uint16_t const retryTimeout_ms PROGMEM;
+    static uint8_t const MaxRetryCount PROGMEM;
 
     int16_t retryTimeout;
     uint8_t retryCount;
