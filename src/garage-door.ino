@@ -102,6 +102,7 @@ void setup (void)
 {
     // Start Serial
   Serial.begin(115200);
+  webServer.placeString("Hello World!" LINE_BREAK);
 
   uint32_t shift = 0;
 
@@ -122,6 +123,17 @@ void setup (void)
 
   // Start Network (replace with 'Ethernet.begin(mac, ip);' for fixed IP)
   Ethernet.begin(const_cast<uint8_t *>(mac), ip, dns, gateway, subnet);
+  webServer.placeString("Ethernet init" LINE_BREAK);
+
+  // Digital IO 17 act as GND for AM2320B sensor
+  pinMode(AM2320_PINGND, OUTPUT);
+  digitalWrite(AM2320_PINGND, LOW);
+  // Digital IO 16 act as +5V for AM2320B sensor
+  pinMode(AM2320_PINVCC, OUTPUT);
+  digitalWrite(AM2320_PINVCC, HIGH);
+
+  AM2320.begin();
+  webServer.placeString("Temp/Hum sensor init" LINE_BREAK);
 
   // Let network have a chance to start up
   delay(1500);
@@ -183,15 +195,15 @@ void loop (void)
       float const hum = AM2320.humidity;
 
       char format[7];
-      snprintf(format, 7, "%.2f", static_cast<double>(temp));
 
+      dtostrf(temp, 4, 2, format);
       PublishMQTTMessage(MQTTPubTemperature, format);  
       webServer.placeString(String_Pub_);
       webServer.placeString(format);
       webServer.placeString(LINE_BREAK);
 
-      snprintf(format, 7, "%.2f", static_cast<double>(hum));
 
+      dtostrf(hum, 4, 2, format);
       PublishMQTTMessage(MQTTPubHumidity, format);  
       webServer.placeString(String_Pub_);
       webServer.placeString(format);

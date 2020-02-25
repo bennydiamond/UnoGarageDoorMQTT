@@ -4,4 +4,5 @@
 #define PINLED 13     // Onboard LED - Activation Indicator
 #define PINRELAY 7    // Relay module - trigger door here
 
-#define DHTPIN 2      // DHT Temperature sensor data pin
+#define AM2320_PINVCC 16      // AM2320B VCC supply pin
+#define AM2320_PINGND 17      // AM2320B GND supply pin
