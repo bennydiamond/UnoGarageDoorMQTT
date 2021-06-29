@@ -16,6 +16,8 @@
 #include <PubSubClient.h>
 #include <limits.h>
 
+#define DHTStringLen (7)
+
 // Define Sub's and Pub's
 #define MQTTSubDoorSwitch "garage/door/switch"
 #define MQTTPubDoorStatus "garage/door/status"
@@ -27,12 +29,13 @@
 #define MQTTAvailablePayload "online"
 #define MQTTUnavailablePayload "offline"
 
+#define MQTTRetain    (true)
+#define MQTTNotRetain (false)
+
 #define StateCheckInterval_ms 1000
-#define PublishStatusInterval_ms 2000
-#define PublishAvailableInterval_ms 30000
-#define PublishTemperatureInterval_ms 60000
+#define CheckTemperatureInterval_ms 60000
 #define willQos (0)
-#define willRetain (0)
+#define willRetain (MQTTRetain)
 
 // MQTT Broker
 IPAddress MQTT_SERVER(192, 168, 1, 254);
@@ -48,11 +51,12 @@ IPAddress subnet(255,255,254,0);
 
 
 // Delay timer
-static uint32_t publishStatusTimer;
-static uint32_t publishAvailabilityTimer;
-static uint32_t publishTemperatureTimer;
-static uint32_t StateCheck = 0;
+static uint32_t checkTemperatureTimer;
+static uint32_t StateCheck;
 static unsigned long previous;
+static DoorState_t stateAlreadyReported;
+static char previousTemp[DHTStringLen];
+static char previousHumidity[DHTStringLen];
 
 // Ethernet Initialisation
 EthernetClient ethClient;
@@ -60,6 +64,8 @@ GarageDoorState garageDoorState;
 StateChanger stateChanger;
 WebServer webServer;
 DHTmod dht;
+
+static void PublishMQTTMessage (char const * const sMQTTSubscription, char const * const sMQTTData, bool retain = false);
 
 // Callback to Arduino from MQTT (inbound message arrives for a subscription - in this case the door on/off switch)
 void callback (char* topic, uint8_t* payload, unsigned int length) 
@@ -101,13 +107,8 @@ void setup (void)
     // Start Serial
   Serial.begin(115200);
 
-  uint32_t shift = 0;
-
-  publishStatusTimer = shift;
-  shift += 17;
-  publishAvailabilityTimer = shift;
-  shift += 17;
-  publishTemperatureTimer = shift;
+  StateCheck = 0;
+  checkTemperatureTimer = 17;
 
   stateChanger.bindGarageDoorState(&garageDoorState);
   stateChanger.bindWebServer(&webServer);
@@ -129,6 +130,8 @@ void setup (void)
   // Display IP for debugging purposes
   printIPAddress();
 
+  stateAlreadyReported = DoorState_Unknown;
+  previousTemp[0] = previousHumidity[0] = '\0';
 }
 
 void loop (void) 
@@ -146,55 +149,57 @@ void loop (void)
       webServer.placeString(")" LINE_BREAK);
       delay(1000);
     }
+
+    PublishMQTTMessage(MQTTPubAvailable, MQTTAvailablePayload, MQTTRetain);  
+    webServer.placeString("Pub: ");
+    webServer.placeString(MQTTAvailablePayload);
+    webServer.placeString(LINE_BREAK);
     
     // Subscribe to the activate switch on OpenHAB
     mqttClient.subscribe(MQTTSubDoorSwitch);
   }
   
-  // Wait a little bit between status checks...
-  if(0 == publishStatusTimer) 
+  // Publish Door Status
+  // Send message
+  DoorState_t const reportedState = garageDoorState.getCurrentDoorState();
+  if(reportedState != stateAlreadyReported)
   {
-    // Where are we right now
-    publishStatusTimer = PublishStatusInterval_ms;
-
-    // Publish Door Status
-    // Send message
     PublishMQTTMessage(MQTTPubDoorStatus, garageDoorState.getDoorString());  
     webServer.placeString("Pub Door state: ");
     webServer.placeString(garageDoorState.getDoorString());
     webServer.placeString(LINE_BREAK);
+    stateAlreadyReported = reportedState;
   }
-  if(0 == publishAvailabilityTimer)
-  {
-    publishAvailabilityTimer = PublishAvailableInterval_ms;
 
-    PublishMQTTMessage(MQTTPubAvailable, MQTTAvailablePayload);  
-    webServer.placeString("Pub: ");
-    webServer.placeString(MQTTAvailablePayload);
-    webServer.placeString(LINE_BREAK);
-  }
-  if(0 == publishTemperatureTimer)
+  if(0 == checkTemperatureTimer)
   {
-    publishTemperatureTimer = PublishTemperatureInterval_ms;
+    checkTemperatureTimer = CheckTemperatureInterval_ms;
 
     dht.readSensor();
     float const temp = dht.getTemperatureValue();
     float const hum = dht.getHumidityValue();
+    char format[DHTStringLen];
+    snprintf(format, DHTStringLen, "%.2f", static_cast<double>(temp));
+    if(0 == strncmp(previousTemp, format, DHTStringLen))
+    {
+      PublishMQTTMessage(MQTTPubTemperature, format);  
+      webServer.placeString("Pub: ");
+      webServer.placeString(format);
+      webServer.placeString(LINE_BREAK);
 
-    char format[7];
-    snprintf(format, 7, "%.2f", static_cast<double>(temp));
+      strncpy(previousTemp, format, DHTStringLen);
+    }
 
-    PublishMQTTMessage(MQTTPubTemperature, format);  
-    webServer.placeString("Pub: ");
-    webServer.placeString(format);
-    webServer.placeString(LINE_BREAK);
+    snprintf(format, DHTStringLen, "%.2f", static_cast<double>(hum));
+    if(0 == strncmp(previousHumidity, format, DHTStringLen))
+    {
+      PublishMQTTMessage(MQTTPubHumidity, format);  
+      webServer.placeString("Pub: ");
+      webServer.placeString(format);
+      webServer.placeString(LINE_BREAK);
 
-    snprintf(format, 7, "%.2f", static_cast<double>(hum));
-
-    PublishMQTTMessage(MQTTPubHumidity, format);  
-    webServer.placeString("Pub: ");
-    webServer.placeString(format);
-    webServer.placeString(LINE_BREAK);
+      strncpy(previousHumidity, format, DHTStringLen);
+    }
   }
   // Do it all over again
   mqttClient.loop();
@@ -229,10 +234,10 @@ void printIPAddress (void)
 
 
 // Publish MQTT data to MQTT broker
-void PublishMQTTMessage (char const * const sMQTTSubscription, char const * const sMQTTData)
+static void PublishMQTTMessage (char const * const sMQTTSubscription, char const * const sMQTTData, bool retain)
 {
   // Define and send message about door state
-  mqttClient.publish(sMQTTSubscription, sMQTTData); 
+  mqttClient.publish(sMQTTSubscription, sMQTTData, retain); 
 
   // Debug info
   webServer.placeString("Outbound: ");
@@ -255,19 +260,9 @@ static void advanceTimers (void)
       StateCheck--;
     }
 
-    if(publishStatusTimer)
+    if(checkTemperatureTimer)
     {
-      publishStatusTimer--;
-    }
-
-    if(publishAvailabilityTimer)
-    {
-      publishAvailabilityTimer--;
-    }
-
-    if(publishTemperatureTimer)
-    {
-      publishTemperatureTimer--;
+      checkTemperatureTimer--;
     }
   }
 }
