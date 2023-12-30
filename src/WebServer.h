@@ -9,6 +9,9 @@
 
 #pragma once
 
+// Uncomment to enable remote syslog
+//#define ENABLE_SYSLOG
+
 class WebServer
 {
 public:
@@ -25,5 +28,7 @@ private:
     EthernetServer server;
     RingBuf<char, logBufferSize> ringBuf;
     EthernetUDP udpClient;
+#ifdef ENABLE_SYSLOG
     Syslog syslog;
+#endif
 };
