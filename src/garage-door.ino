@@ -17,35 +17,24 @@
 #include <PubSubClient.h>
 #include <limits.h>
 
-// Define Sub's and Pub's
-char const MQTTSubDoorSwitch[] PROGMEM = "garage/door/switch";
-char const MQTTPubDoorStatus[] PROGMEM = "garage/door/status";
-char const MQTTPubAvailable[] PROGMEM = "garage/door/available";
-char const MQTTPubTemperature[] PROGMEM = "garage/door/temperature";
-char const MQTTPubHumidity[] PROGMEM = "garage/door/humidity";
-char const MQTTBrokerrUser[] PROGMEM = "sonoff";
-#define MQTTBrokerrPass MQTTBrokerrUser
-char const MQTTAvailablePayload[] PROGMEM = "online";
-char const MQTTUnavailablePayload[] PROGMEM = "offline";
-
-uint16_t const StateCheckInterval_ms PROGMEM = 1000;
-uint16_t const PublishStatusInterval_ms PROGMEM = 2000;
-uint16_t const PublishAvailableInterval_ms PROGMEM = 30000;
-uint16_t const PublishTemperatureInterval_ms PROGMEM = 60000;
-uint8_t const willQos PROGMEM = 0;
-uint8_t const willRetain PROGMEM = 0;
+uint16_t const StateCheckInterval_ms = 1000;
+uint16_t const PublishStatusInterval_ms = 2000;
+uint16_t const PublishAvailableInterval_ms = 30000;
+uint16_t const PublishTemperatureInterval_ms = 60000;
+uint8_t const willQos = 0;
+uint8_t const willRetain = 0;
 
 // MQTT Broker
-IPAddress const MQTT_SERVER(192, 168, 1, 254) PROGMEM;
+IPAddress const MQTT_SERVER(192, 168, 1, 254);
 
 // The IP address of the Arduino
-uint8_t const mac[] PROGMEM = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 };
+uint8_t const mac[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 };
 
 // Remove remarks and alter if you want a fixed IP for the Arduino
-IPAddress const ip(192, 168, 1, 200) PROGMEM;
-IPAddress const dns(192, 168, 1, 254) PROGMEM;
-IPAddress const gateway(192, 168, 0, 1) PROGMEM;
-IPAddress const subnet(255,255,254,0) PROGMEM;
+IPAddress const ip(192, 168, 1, 200);
+IPAddress const dns(192, 168, 1, 254);
+IPAddress const gateway(192, 168, 0, 1);
+IPAddress const subnet(255,255,254,0);
 
 
 // Delay timer
@@ -117,8 +106,9 @@ void setup (void)
   garageDoorState.bindWebServer(&webServer);
 
   // LED off, visual indicator when triggered
-  webServer.placeString(String_HelloWorld, false);
-
+  char szString[StringTable_SingleStringMaxLength];
+  getString(String_HelloWorld, szString);
+  webServer.placeString(szString, false);
   previous = 0;
 
   // Start Network (replace with 'Ethernet.begin(mac, ip);' for fixed IP)
@@ -149,10 +139,19 @@ void loop (void)
   if(!mqttClient.connected())  
   {
     // Connect to MQTT broker on the openhab server, retry constantly
-    while(mqttClient.connect(String_PorteDeGarage, MQTTBrokerrUser, MQTTBrokerrPass, MQTTPubAvailable, willQos, willRetain, MQTTUnavailablePayload) != 1) 
+    char szString[StringTable_SingleStringMaxLength];
+    char szUserPass[StringTable_MQTTStringMaxLength];
+    char szPubAvail[StringTable_MQTTStringMaxLength];
+    char szUnavailPayload[StringTable_MQTTStringMaxLength];
+    getString(String_PorteDeGarage, szString);
+    getString(MQTTBrokerrUser, szUserPass);
+    getString(MQTTPubAvailable, szPubAvail);
+    getString(MQTTUnavailablePayload, szUnavailPayload);
+    while(mqttClient.connect(szString, szUserPass, szUserPass, szPubAvail, willQos, willRetain, szUnavailPayload) != 1) 
     {
       char szErrorCode[10];
-      webServer.placeString(String_ErrorConnectMQTTState);
+      getString(String_ErrorConnectMQTTState, szString);
+      webServer.placeString(szString);
       snprintf(szErrorCode, 10, "%d", (char)mqttClient.state());
       webServer.placeString(szErrorCode);
       webServer.placeString(")" LINE_BREAK);
@@ -160,7 +159,20 @@ void loop (void)
     }
     
     // Subscribe to the activate switch on OpenHAB
-    mqttClient.subscribe(MQTTSubDoorSwitch);
+    getString(MQTTSubDoorSwitch, szString);
+    mqttClient.subscribe(szString);
+  }
+
+  if (garageDoorState.getActualDoorStateChanged())
+  {
+    char szString[StringTable_SingleStringMaxLength];
+    getString(garageDoorState.getActualDoorString(), szString);
+    PublishMQTTMessage(MQTTPubDoorDoor, szString);
+    getString(String_PubActualDoorState, szString);
+    webServer.placeString(szString);
+    getString(garageDoorState.getActualDoorString(), szString);
+    webServer.placeString(szString);
+    webServer.placeString(LINE_BREAK);
   }
   
   // Wait a little bit between status checks...
@@ -171,18 +183,26 @@ void loop (void)
 
     // Publish Door Status
     // Send message
-    PublishMQTTMessage(MQTTPubDoorStatus, garageDoorState.getDoorString());  
-    webServer.placeString(String_PubDoorState__);
-    webServer.placeString(garageDoorState.getDoorString());
+    char szString[StringTable_SingleStringMaxLength];
+    getString(garageDoorState.getDoorString(), szString);
+    PublishMQTTMessage(MQTTPubDoorStatus, szString);
+    getString(String_PubDoorState, szString);
+    webServer.placeString(szString);
+    getString(garageDoorState.getDoorString(), szString);
+    webServer.placeString(szString);
     webServer.placeString(LINE_BREAK);
   }
   if(0 == publishAvailabilityTimer)
   {
     publishAvailabilityTimer = PublishAvailableInterval_ms;
 
-    PublishMQTTMessage(MQTTPubAvailable, MQTTAvailablePayload);  
-    webServer.placeString(String_Pub_);
-    webServer.placeString(MQTTAvailablePayload);
+    char szString[StringTable_SingleStringMaxLength];
+    getString(MQTTAvailablePayload, szString);
+    PublishMQTTMessage(MQTTPubAvailable, szString);
+    getString(String_Pub, szString);
+    webServer.placeString(szString);
+    getString(MQTTAvailablePayload, szString);
+    webServer.placeString(szString);
     webServer.placeString(LINE_BREAK);
   }
   if(0 == publishTemperatureTimer)
@@ -191,21 +211,24 @@ void loop (void)
 
     if(AM232X_OK == AM2320.read())
     {
-      float const temp = AM2320.temperature;
-      float const hum = AM2320.humidity;
+      float const temp = AM2320.getTemperature();
+      float const hum = AM2320.getHumidity();
 
       char format[7];
 
       dtostrf(temp, 4, 2, format);
-      PublishMQTTMessage(MQTTPubTemperature, format);  
-      webServer.placeString(String_Pub_);
+      PublishMQTTMessage(MQTTPubTemperature, format);
+      char szString[StringTable_SingleStringMaxLength];
+      getString(String_Pub, szString);
+      webServer.placeString(szString);
       webServer.placeString(format);
       webServer.placeString(LINE_BREAK);
 
 
       dtostrf(hum, 4, 2, format);
       PublishMQTTMessage(MQTTPubHumidity, format);  
-      webServer.placeString(String_Pub_);
+      getString(String_Pub, szString);
+      webServer.placeString(szString);
       webServer.placeString(format);
       webServer.placeString(LINE_BREAK);
     }
@@ -243,18 +266,21 @@ void printIPAddress (void)
 
 
 // Publish MQTT data to MQTT broker
-void PublishMQTTMessage (char const * const sMQTTSubscription, char const * const sMQTTData)
+bool PublishMQTTMessage (StringIndex_t sMQTTSubscription, char const * const sMQTTData)
 {
   // Define and send message about door state
-  mqttClient.publish(sMQTTSubscription, sMQTTData); 
+  char szString[StringTable_MQTTStringMaxLength];
+  getString(sMQTTSubscription, szString);
+  bool publishSuccess = mqttClient.publish(szString, sMQTTData); 
 
   // Debug info
   webServer.placeString("Outbound: ");
-  webServer.placeString(sMQTTSubscription);
+  webServer.placeString(szString);
   webServer.placeString(":");
   webServer.placeString(sMQTTData);
   webServer.placeString(LINE_BREAK);
  
+ return publishSuccess;
 }
 
 static void advanceTimers (void)

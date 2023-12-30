@@ -1,6 +1,7 @@
 
 #include "DoorStates.h"
 #include "WebServer.h"
+#include "strings.h"
 #include <stdint.h>
 
 #pragma once
@@ -18,12 +19,12 @@ public:
     bool getDoorStoppedMid (void) { return doorStoppedMid; }
     bool getStateReachFailed (void) { return stateReachFailed; }
     void forceResetStateReachFailed (void) { stateReachFailed = false; timeoutCounter = -1; }
-    char const * const getDoorString (void);
+    StringIndex_t getDoorString (void);
     void relayIsToggled (void);
 
     bool getActualDoorStateChanged (void) { return actualDoorStateChanged; }
     void clearActualDoorStateChanged (void) { actualDoorStateChanged = false; }
-    char const * const getActualDoorString (void);
+    StringIndex_t getActualDoorString (void);
 
     void bindWebServer (WebServer * in) { webServer = in; }
 

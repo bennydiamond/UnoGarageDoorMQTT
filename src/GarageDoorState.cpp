@@ -1,17 +1,16 @@
 #include "GarageDoorState.h"
 #include "pins.h"
-#include "strings.h"
 #include <Arduino.h>
 
-uint8_t const GarageDoorState::TransitionTimeoutCount PROGMEM = 20;
-uint8_t const GarageDoorState::StateHoldTimeCount PROGMEM = 3;
+uint8_t const GarageDoorState::TransitionTimeoutCount = 20;
+uint8_t const GarageDoorState::StateHoldTimeCount = 3;
 static GarageDoorState* garageDoorStateImpl = nullptr;
 
-char const * const DoorStateStrings[] PROGMEM =
+StringIndex_t DoorStateStrings[] =
 {
-  [DoorState_Unknown] = "Unknown",
-  [DoorState_Open]    = "Open",
-  [DoorState_Close]   = "Close"
+  [DoorState_Unknown] = String_DoorStateUnknown,
+  [DoorState_Open]    = String_DoorStateClose,
+  [DoorState_Close]   = String_DoorStateOpen
 };
 
 GarageDoorState::GarageDoorState () :
@@ -60,7 +59,9 @@ void GarageDoorState::run (void)
             char sz[20];
             snprintf(sz, 128, "Timeout:  %d" LINE_BREAK, timeoutCounter);
             webServer->placeString(sz);
-            webServer->placeString(String_StateNotReached);
+            char szString[StringTable_SingleStringMaxLength];
+            getString(String_StateNotReached, szString);
+            webServer->placeString(szString);
         }
 
         if(targetDoorState == lastKnownDoorState && false == inTransition)
@@ -70,7 +71,9 @@ void GarageDoorState::run (void)
             {
                 timeoutCounter = -1;
                 stateReachFailed = false;
-                webServer->placeString(String_StateReached);
+                char szString[StringTable_SingleStringMaxLength];
+                getString(String_StateReached, szString);
+                webServer->placeString(szString);
             }
             else
             {
@@ -85,7 +88,9 @@ void GarageDoorState::run (void)
 
         if(0 == timeoutCounter)
         {
-            webServer->placeString(String_StateReachFailed);
+            char szString[StringTable_SingleStringMaxLength];
+            getString(String_StateReachFailed, szString);
+            webServer->placeString(szString);
             stateReachFailed = true;
             stateHoldCounter = 0;
         }
@@ -93,12 +98,12 @@ void GarageDoorState::run (void)
     relayActivated = false;
 }
 
-char const * const GarageDoorState::getDoorString (void) 
+StringIndex_t GarageDoorState::getDoorString (void) 
 { 
     return DoorStateStrings[reportedDoorState]; 
 }
 
-char const * const GarageDoorState::getActualDoorString (void) 
+StringIndex_t GarageDoorState::getActualDoorString (void) 
 { 
     return DoorStateStrings[actualDoorState]; 
 }
@@ -113,7 +118,9 @@ void GarageDoorState::relayIsToggled (void)
     // If stopped
     if(inTransition)
     {
-        webServer->placeString(String_DoorStoppedMid);
+        char szString[StringTable_SingleStringMaxLength];
+        getString(String_DoorStoppedMid, szString);
+        webServer->placeString(szString);
         doorStoppedMid = false;
         if(DoorState_Close == targetDoorState)
         {
@@ -147,7 +154,9 @@ void GarageDoorState::checkCurrentState (void)
     if(openSensor && closeSensor)
     {
       // Both sensors show true at the same time... Error!
-      webServer->placeString(String_SensorError);
+      char szString[StringTable_SingleStringMaxLength];
+      getString(String_SensorError, szString);
+      webServer->placeString(szString);
       lastKnownDoorState = DoorState_Unknown;
     }
     else if(openSensor) 
@@ -175,9 +184,12 @@ void GarageDoorState::checkCurrentState (void)
     }
 
     char sz[30];
-    snprintf(sz, 30, "LastKnownState: %s" LINE_BREAK, DoorStateStrings[lastKnownDoorState]);
+    char szString[StringTable_SingleStringMaxLength];
+    getString(DoorStateStrings[lastKnownDoorState], szString);
+    snprintf(sz, 30, "LastKnownState: %s" LINE_BREAK, szString);
     webServer->placeString(sz);
-    snprintf(sz, 30, "TargetState: %s" LINE_BREAK, DoorStateStrings[targetDoorState]);
+    getString(DoorStateStrings[targetDoorState], szString);
+    snprintf(sz, 30, "TargetState: %s" LINE_BREAK, szString);
     webServer->placeString(sz);
 }
 
