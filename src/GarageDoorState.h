@@ -21,12 +21,17 @@ public:
     char const * const getDoorString (void);
     void relayIsToggled (void);
 
+    bool getActualDoorStateChanged (void) { return actualDoorStateChanged; }
+    void clearActualDoorStateChanged (void) { actualDoorStateChanged = false; }
+    char const * const getActualDoorString (void);
+
     void bindWebServer (WebServer * in) { webServer = in; }
 
 private:
     static uint8_t const TransitionTimeoutCount PROGMEM;
     static uint8_t const StateHoldTimeCount PROGMEM;
     void checkCurrentState (void);
+    static void updateActualDoorState (void);
 
     // Initial door state (assume neither closed nor open when starting)
     DoorState_t lastKnownDoorState;
@@ -38,6 +43,9 @@ private:
     bool stateReachFailed;
     bool relayActivated;
     bool inTransition;
+
+    volatile DoorState_t actualDoorState;
+    volatile bool actualDoorStateChanged;
 
     WebServer * webServer;
 };

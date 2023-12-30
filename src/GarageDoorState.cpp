@@ -5,6 +5,7 @@
 
 uint8_t const GarageDoorState::TransitionTimeoutCount PROGMEM = 20;
 uint8_t const GarageDoorState::StateHoldTimeCount PROGMEM = 3;
+static GarageDoorState* garageDoorStateImpl = nullptr;
 
 char const * const DoorStateStrings[] PROGMEM =
 {
@@ -23,11 +24,22 @@ stateReachFailed(false),
 relayActivated(false),
 inTransition(false)
 {
-  // Reed switch pins are inputs, activate internal pullup resistor by writing high
+  garageDoorStateImpl = this;
+  // HAL effect sensor pins are inputs, activate internal pullup resistor by writing high
   pinMode(PINCLOSED, INPUT_PULLUP);
   digitalWrite(PINCLOSED, HIGH);
   pinMode(PINOPEN, INPUT_PULLUP);
   digitalWrite(PINOPEN, HIGH);
+
+  // Digital IO 3 act as GND for Reed switch
+  pinMode(REED_SINK_GND, OUTPUT);
+  digitalWrite(REED_SINK_GND, LOW);
+
+  // Reed switch input for actual door state, activate internal pullup resistor by writing high
+  pinMode(REED_IO_PULLUP, INPUT_PULLUP);
+  digitalWrite(REED_IO_PULLUP, HIGH);
+  updateActualDoorState();
+  attachInterrupt(digitalPinToInterrupt(REED_IO_PULLUP), updateActualDoorState, CHANGE);
 
   checkCurrentState();
   targetDoorState = lastKnownDoorState;
@@ -84,6 +96,11 @@ void GarageDoorState::run (void)
 char const * const GarageDoorState::getDoorString (void) 
 { 
     return DoorStateStrings[reportedDoorState]; 
+}
+
+char const * const GarageDoorState::getActualDoorString (void) 
+{ 
+    return DoorStateStrings[actualDoorState]; 
 }
 
 void GarageDoorState::relayIsToggled (void)
@@ -162,4 +179,10 @@ void GarageDoorState::checkCurrentState (void)
     webServer->placeString(sz);
     snprintf(sz, 30, "TargetState: %s" LINE_BREAK, DoorStateStrings[targetDoorState]);
     webServer->placeString(sz);
+}
+
+void GarageDoorState::updateActualDoorState (void)
+{
+    garageDoorStateImpl->actualDoorState = digitalRead(REED_IO_PULLUP) == LOW ? DoorState_Close : DoorState_Open;
+    garageDoorStateImpl->actualDoorStateChanged = true;
 }
