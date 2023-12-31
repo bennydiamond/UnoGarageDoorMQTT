@@ -43,6 +43,7 @@ static uint32_t publishAvailabilityTimer;
 static uint32_t publishTemperatureTimer;
 static uint32_t StateCheck = 0;
 static unsigned long previous;
+static bool TemperatureSensorPresent;
 
 // Ethernet Initialisation
 EthernetClient ethClient;
@@ -122,7 +123,10 @@ void setup (void)
   pinMode(AM2320_PINVCC, OUTPUT);
   digitalWrite(AM2320_PINVCC, HIGH);
 
-  AM2320.begin();
+  delay(100); // Stabilize AM2320 power supply
+  Wire.begin();
+  TemperatureSensorPresent = AM2320.begin();
+  AM2320.wakeUp();
   webServer.placeString("Temp/Hum sensor init" LINE_BREAK);
 
   // Let network have a chance to start up
@@ -167,12 +171,15 @@ void loop (void)
   {
     char szString[StringTable_SingleStringMaxLength];
     getString(garageDoorState.getActualDoorString(), szString);
-    PublishMQTTMessage(MQTTPubDoorDoor, szString);
-    getString(String_PubActualDoorState, szString);
-    webServer.placeString(szString);
-    getString(garageDoorState.getActualDoorString(), szString);
-    webServer.placeString(szString);
-    webServer.placeString(LINE_BREAK);
+    if(PublishMQTTMessage(MQTTPubDoorDoor, szString))
+    {
+      getString(String_PubActualDoorState, szString);
+      webServer.placeString(szString);
+      getString(garageDoorState.getActualDoorString(), szString);
+      webServer.placeString(szString);
+      webServer.placeString(LINE_BREAK);
+      garageDoorState.clearActualDoorStateChanged();
+    }
   }
   
   // Wait a little bit between status checks...
