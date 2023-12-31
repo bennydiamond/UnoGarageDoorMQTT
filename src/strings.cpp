@@ -57,5 +57,5 @@ char const * const String_table[String_IndexCount] PROGMEM =
 
 void getString (StringIndex_t idx, char *out) 
 {
-  strcpy_P(out, (char *)pgm_read_ptr(&(String_table[String_IndexCount])));  // Necessary casts and dereferencing, just copy.
+  strcpy_P(out, (char *)pgm_read_ptr(&(String_table[idx])));  // Necessary casts and dereferencing, just copy.
 }
