@@ -12,9 +12,9 @@ char const String_StateReached_[] PROGMEM          = "State reached." LINE_BREAK
 char const String_StateReachFailed_[] PROGMEM      = "State reach failed." LINE_BREAK;
 char const String_DoorStoppedMid_[] PROGMEM        = "Door Stopped mid" LINE_BREAK;
 char const String_SensorError_[] PROGMEM           = "Sensor Error" LINE_BREAK;
-char const String_DoorStateUnknown_[] PROGMEM      = "Unknown" LINE_BREAK;
-char const String_DoorStateClose_[] PROGMEM        = "Close" LINE_BREAK;
-char const String_DoorStateOpen_[] PROGMEM         = "Open" LINE_BREAK;
+char const String_DoorStateUnknown_[] PROGMEM      = "Unknown";
+char const String_DoorStateClose_[] PROGMEM        = "Close";
+char const String_DoorStateOpen_[] PROGMEM         = "Open";
 
 char const MQTTSubDoorSwitch_[] PROGMEM      = "garage/door/switch";
 char const MQTTPubDoorStatus_[] PROGMEM      = "garage/door/status";

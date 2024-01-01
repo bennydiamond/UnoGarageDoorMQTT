@@ -9,8 +9,8 @@ static GarageDoorState* garageDoorStateImpl = nullptr;
 StringIndex_t DoorStateStrings[] =
 {
   [DoorState_Unknown] = String_DoorStateUnknown,
-  [DoorState_Open]    = String_DoorStateClose,
-  [DoorState_Close]   = String_DoorStateOpen
+  [DoorState_Open]    = String_DoorStateOpen,
+  [DoorState_Close]   = String_DoorStateClose
 };
 
 GarageDoorState::GarageDoorState () :
