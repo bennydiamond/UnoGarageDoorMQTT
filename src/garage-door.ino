@@ -20,9 +20,11 @@
 uint16_t const StateCheckInterval_ms = 1000;
 uint16_t const PublishStatusInterval_ms = 2000;
 uint16_t const PublishAvailableInterval_ms = 30000;
-uint16_t const PublishTemperatureInterval_ms = 60000;
+uint16_t const QueryClimateInterval_ms = 20000;
 uint8_t const willQos = 0;
 uint8_t const willRetain = 0;
+uint8_t const TempSensorStringLen = 4;
+bool RetainMessage = true;
 
 // MQTT Broker
 IPAddress const MQTT_SERVER(192, 168, 1, 254);
@@ -43,7 +45,8 @@ static uint32_t publishAvailabilityTimer;
 static uint32_t publishTemperatureTimer;
 static uint32_t StateCheck = 0;
 static unsigned long previous;
-static bool TemperatureSensorPresent;
+static char prevTemp[TempSensorStringLen] = "UwU"; // Init with impossible value to trigger publish on boot
+static char prevHumi[TempSensorStringLen] = "UwU"; // Init with impossible value to trigger publish on boot
 
 // Ethernet Initialisation
 EthernetClient ethClient;
@@ -52,6 +55,8 @@ StateChanger stateChanger;
 WebServer webServer;
 
 AM232X AM2320;
+
+static bool PublishMQTTMessage (StringIndex_t sMQTTSubscription, char const * const sMQTTData, bool retain = false);
 
 // Callback to Arduino from MQTT (inbound message arrives for a subscription - in this case the door on/off switch)
 void callback (char* topic, uint8_t* payload, unsigned int length) 
@@ -122,7 +127,7 @@ void setup (void)
 
   delay(100); // Stabilize AM2320 power supply
   Wire.begin();
-  TemperatureSensorPresent = AM2320.begin();
+  AM2320.begin();
   AM2320.wakeUp();
   webServer.placeString("Temp/Hum sensor init" LINE_BREAK);
 
@@ -164,7 +169,7 @@ void loop (void)
   {
     char szString[StringTable_SingleStringMaxLength];
     getString(garageDoorState.getActualDoorString(), szString);
-    if(PublishMQTTMessage(MQTTPubDoorDoor, szString))
+    if(PublishMQTTMessage(MQTTPubDoorDoor, szString, RetainMessage))
     {
       getString(String_PubActualDoorState, szString);
       webServer.placeString(szString);
@@ -185,7 +190,7 @@ void loop (void)
     // Send message
     char szString[StringTable_SingleStringMaxLength];
     getString(garageDoorState.getDoorString(), szString);
-    PublishMQTTMessage(MQTTPubDoorStatus, szString);
+    PublishMQTTMessage(MQTTPubDoorStatus, szString, RetainMessage);
     getString(String_PubDoorState, szString);
     webServer.placeString(szString);
     getString(garageDoorState.getDoorString(), szString);
@@ -207,30 +212,38 @@ void loop (void)
   }
   if(0 == publishTemperatureTimer)
   {
-    publishTemperatureTimer = PublishTemperatureInterval_ms;
+    publishTemperatureTimer = QueryClimateInterval_ms;
 
     if(AM232X_OK == AM2320.read())
     {
       float const temp = AM2320.getTemperature();
       float const hum = AM2320.getHumidity();
 
-      char format[7];
+      char format[TempSensorStringLen + 1]; // +1 for null-terminating char
 
-      dtostrf(temp, 4, 2, format);
-      PublishMQTTMessage(MQTTPubTemperature, format);
-      char szString[StringTable_SingleStringMaxLength];
-      getString(String_Pub, szString);
-      webServer.placeString(szString);
-      webServer.placeString(format);
-      webServer.placeString(LINE_BREAK);
+      dtostrf(temp, TempSensorStringLen, 1, format);
+      if(memcmp(format, prevTemp, TempSensorStringLen))
+      {
+        memcpy(prevTemp, format, TempSensorStringLen);
+        PublishMQTTMessage(MQTTPubTemperature, format, RetainMessage);
+        char szString[StringTable_SingleStringMaxLength];
+        getString(String_Pub, szString);
+        webServer.placeString(szString);
+        webServer.placeString(format);
+        webServer.placeString(LINE_BREAK);
+      }
 
-
-      dtostrf(hum, 4, 2, format);
-      PublishMQTTMessage(MQTTPubHumidity, format);  
-      getString(String_Pub, szString);
-      webServer.placeString(szString);
-      webServer.placeString(format);
-      webServer.placeString(LINE_BREAK);
+      dtostrf(hum, TempSensorStringLen, 1, format);
+      if(memcmp(format, prevHumi, TempSensorStringLen))
+      {
+        memcpy(prevHumi, format, TempSensorStringLen);
+        PublishMQTTMessage(MQTTPubHumidity, format, RetainMessage);  
+        char szString[StringTable_SingleStringMaxLength];
+        getString(String_Pub, szString);
+        webServer.placeString(szString);
+        webServer.placeString(format);
+        webServer.placeString(LINE_BREAK);
+      }
     }
   }
   // Do it all over again
@@ -250,12 +263,12 @@ void loop (void)
 }
 
 // Publish MQTT data to MQTT broker
-bool PublishMQTTMessage (StringIndex_t sMQTTSubscription, char const * const sMQTTData)
+static bool PublishMQTTMessage (StringIndex_t sMQTTSubscription, char const * const sMQTTData, bool retain)
 {
   // Define and send message about door state
   char szString[StringTable_MQTTStringMaxLength];
   getString(sMQTTSubscription, szString);
-  bool publishSuccess = mqttClient.publish(szString, sMQTTData); 
+  bool publishSuccess = mqttClient.publish(szString, sMQTTData, retain); 
 
   // Debug info
   webServer.placeString("Outbound: ");
