@@ -16,9 +16,11 @@ StringIndex_t DoorStateStrings[] =
 GarageDoorState::GarageDoorState () :
 lastKnownDoorState(DoorState_Unknown),
 targetDoorState(DoorState_Unknown),
+previousTargetDoorState(DoorState_Open), // init value must be different from member `targetDoorState`
 doorStoppedMid(false),
 timeoutCounter(-1),
 stateHoldCounter(0),
+stateHoldReported(false),
 stateReachFailed(false),
 relayActivated(false),
 inTransition(false)
@@ -71,9 +73,13 @@ void GarageDoorState::run (void)
             {
                 timeoutCounter = -1;
                 stateReachFailed = false;
-                char szString[StringTable_SingleStringMaxLength];
-                getString(String_StateReached, szString);
-                webServer->placeString(szString);
+                if(false == stateHoldReported)
+                {
+                    stateHoldReported = true;
+                    char szString[StringTable_SingleStringMaxLength];
+                    getString(String_StateReached, szString);
+                    webServer->placeString(szString);
+                }
             }
             else
             {
@@ -84,13 +90,18 @@ void GarageDoorState::run (void)
         {
             timeoutCounter--;
             stateHoldCounter = 0;
+            stateHoldReported = false;
         }
 
         if(0 == timeoutCounter)
         {
-            char szString[StringTable_SingleStringMaxLength];
-            getString(String_StateReachFailed, szString);
-            webServer->placeString(szString);
+            if(false == stateHoldReported)
+            {
+                stateHoldReported = true;
+                char szString[StringTable_SingleStringMaxLength];
+                getString(String_StateReachFailed, szString);
+                webServer->placeString(szString);
+            }
             stateReachFailed = true;
             stateHoldCounter = 0;
         }
@@ -114,6 +125,7 @@ void GarageDoorState::relayIsToggled (void)
     stateReachFailed = false;
     relayActivated = true;
     stateHoldCounter = 0;
+    stateHoldReported = false;
 
     // If stopped
     if(inTransition)
@@ -148,6 +160,7 @@ void GarageDoorState::checkCurrentState (void)
     uint8_t closeSensor = digitalRead(PINCLOSED) == LOW ? 1 : 0;
     uint8_t openSensor = digitalRead(PINOPEN) == LOW ? 1 : 0;
     inTransition = false;
+    DoorState_t lastKnownDoorStateOnEntry = lastKnownDoorState;
 
     reportedDoorState = DoorState_Open;
     
@@ -183,14 +196,24 @@ void GarageDoorState::checkCurrentState (void)
         }
     }
 
-    char sz[30];
-    char szString[StringTable_SingleStringMaxLength];
-    getString(DoorStateStrings[lastKnownDoorState], szString);
-    snprintf(sz, 30, "LastKnownState: %s" LINE_BREAK, szString);
-    webServer->placeString(sz);
-    getString(DoorStateStrings[targetDoorState], szString);
-    snprintf(sz, 30, "TargetState: %s" LINE_BREAK, szString);
-    webServer->placeString(sz);
+    if(lastKnownDoorStateOnEntry != lastKnownDoorState)
+    {
+        char sz[30];
+        char szString[StringTable_SingleStringMaxLength];
+        getString(DoorStateStrings[lastKnownDoorState], szString);
+        snprintf(sz, 30, "LastKnownState: %s" LINE_BREAK, szString);
+        webServer->placeString(sz);
+    }
+
+    if(previousTargetDoorState != targetDoorState)
+    {
+        previousTargetDoorState = targetDoorState;
+        char sz[30];
+        char szString[StringTable_SingleStringMaxLength];
+        getString(DoorStateStrings[targetDoorState], szString);
+        snprintf(sz, 30, "TargetState: %s" LINE_BREAK, szString);
+        webServer->placeString(sz);
+    }
 }
 
 void GarageDoorState::updateActualDoorState (void)

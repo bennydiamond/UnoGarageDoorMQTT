@@ -37,10 +37,12 @@ private:
     // Initial door state (assume neither closed nor open when starting)
     DoorState_t lastKnownDoorState;
     DoorState_t targetDoorState;
+    DoorState_t previousTargetDoorState;
     DoorState_t reportedDoorState;
     bool doorStoppedMid;
     int8_t timeoutCounter;
     uint8_t stateHoldCounter;
+    bool stateHoldReported;
     bool stateReachFailed;
     bool relayActivated;
     bool inTransition;

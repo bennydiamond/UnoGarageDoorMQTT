@@ -17,8 +17,7 @@
 #include <PubSubClient.h>
 #include <limits.h>
 
-uint16_t const StateCheckInterval_ms = 1000;
-uint16_t const PublishStatusInterval_ms = 2000;
+uint16_t const StateCheckInterval_ms = 100;
 uint16_t const PublishAvailableInterval_ms = 30000;
 uint16_t const QueryClimateInterval_ms = 20000;
 uint8_t const willQos = 0;
@@ -40,13 +39,13 @@ IPAddress const subnet(255,255,254,0);
 
 
 // Delay timer
-static uint32_t publishStatusTimer;
 static uint32_t publishAvailabilityTimer;
-static uint32_t publishTemperatureTimer;
+static uint32_t queryClimateTimer;
 static uint32_t StateCheck = 0;
 static unsigned long previous;
 static char prevTemp[TempSensorStringLen] = "UwU"; // Init with impossible value to trigger publish on boot
 static char prevHumi[TempSensorStringLen] = "UwU"; // Init with impossible value to trigger publish on boot
+static StringIndex_t prevDoorStatus = String_IndexCount; // Init with impossible value to trigger publish on boot
 
 // Ethernet Initialisation
 EthernetClient ethClient;
@@ -102,11 +101,9 @@ void setup (void)
 
   uint32_t shift = 0;
 
-  publishStatusTimer = shift;
-  shift += 17;
   publishAvailabilityTimer = shift;
   shift += 17;
-  publishTemperatureTimer = shift;
+  queryClimateTimer = shift;
 
   stateChanger.bindGarageDoorState(&garageDoorState);
   stateChanger.bindWebServer(&webServer);
@@ -165,6 +162,20 @@ void loop (void)
     mqttClient.subscribe(szString);
   }
 
+  if(0 == publishAvailabilityTimer)
+  {
+    publishAvailabilityTimer = PublishAvailableInterval_ms;
+
+    char szString[StringTable_SingleStringMaxLength];
+    getString(MQTTAvailablePayload, szString);
+    PublishMQTTMessage(MQTTPubAvailable, szString);
+    getString(String_Pub, szString);
+    webServer.placeString(szString);
+    getString(MQTTAvailablePayload, szString);
+    webServer.placeString(szString);
+    webServer.placeString(LINE_BREAK);
+  }
+
   if (garageDoorState.getActualDoorStateChanged())
   {
     char szString[StringTable_SingleStringMaxLength];
@@ -180,39 +191,23 @@ void loop (void)
     }
   }
   
-  // Wait a little bit between status checks...
-  if(0 == publishStatusTimer) 
+  StringIndex_t doorStatus = garageDoorState.getDoorString();
+  if(prevDoorStatus != doorStatus)
   {
-    // Where are we right now
-    publishStatusTimer = PublishStatusInterval_ms;
-
-    // Publish Door Status
-    // Send message
+    prevDoorStatus = doorStatus;
     char szString[StringTable_SingleStringMaxLength];
-    getString(garageDoorState.getDoorString(), szString);
+    getString(doorStatus, szString);
     PublishMQTTMessage(MQTTPubDoorStatus, szString, RetainMessage);
     getString(String_PubDoorState, szString);
     webServer.placeString(szString);
-    getString(garageDoorState.getDoorString(), szString);
+    getString(doorStatus, szString);
     webServer.placeString(szString);
     webServer.placeString(LINE_BREAK);
   }
-  if(0 == publishAvailabilityTimer)
-  {
-    publishAvailabilityTimer = PublishAvailableInterval_ms;
 
-    char szString[StringTable_SingleStringMaxLength];
-    getString(MQTTAvailablePayload, szString);
-    PublishMQTTMessage(MQTTPubAvailable, szString);
-    getString(String_Pub, szString);
-    webServer.placeString(szString);
-    getString(MQTTAvailablePayload, szString);
-    webServer.placeString(szString);
-    webServer.placeString(LINE_BREAK);
-  }
-  if(0 == publishTemperatureTimer)
+  if(0 == queryClimateTimer)
   {
-    publishTemperatureTimer = QueryClimateInterval_ms;
+    queryClimateTimer = QueryClimateInterval_ms;
 
     if(AM232X_OK == AM2320.read())
     {
@@ -292,19 +287,14 @@ static void advanceTimers (void)
       StateCheck--;
     }
 
-    if(publishStatusTimer)
-    {
-      publishStatusTimer--;
-    }
-
     if(publishAvailabilityTimer)
     {
       publishAvailabilityTimer--;
     }
 
-    if(publishTemperatureTimer)
+    if(queryClimateTimer)
     {
-      publishTemperatureTimer--;
+      queryClimateTimer--;
     }
   }
 }
