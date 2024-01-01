@@ -2,7 +2,7 @@
 #include "pins.h"
 #include <Arduino.h>
 
-uint8_t const GarageDoorState::TransitionTimeoutCount = 20;
+uint8_t const GarageDoorState::TransitionTimeoutCount_s = 20;
 uint8_t const GarageDoorState::StateHoldTimeCount = 3;
 static GarageDoorState* garageDoorStateImpl = nullptr;
 
@@ -39,7 +39,8 @@ inTransition(false)
   // Reed switch input for actual door state, activate internal pullup resistor by writing high
   pinMode(REED_IO_PULLUP, INPUT_PULLUP);
   digitalWrite(REED_IO_PULLUP, HIGH);
-  updateActualDoorState();
+  actualDoorState = digitalRead(REED_IO_PULLUP) == LOW ? DoorState_Close : DoorState_Open;
+  actualDoorStateChanged = true;
   attachInterrupt(digitalPinToInterrupt(REED_IO_PULLUP), updateActualDoorState, CHANGE);
 
   checkCurrentState();
@@ -51,7 +52,7 @@ GarageDoorState::~GarageDoorState ()
 }
 
 // Call every 3 seconds
-void GarageDoorState::run (void)
+void GarageDoorState::run (uint32_t elapsedTime_ms)
 {
     if(false == relayActivated)
     {
@@ -121,7 +122,7 @@ StringIndex_t GarageDoorState::getActualDoorString (void)
 
 void GarageDoorState::relayIsToggled (void)
 {
-    timeoutCounter = TransitionTimeoutCount;
+    timeoutCounter = TransitionTimeoutCount_s;
     stateReachFailed = false;
     relayActivated = true;
     stateHoldCounter = 0;
@@ -218,6 +219,14 @@ void GarageDoorState::checkCurrentState (void)
 
 void GarageDoorState::updateActualDoorState (void)
 {
-    garageDoorStateImpl->actualDoorState = digitalRead(REED_IO_PULLUP) == LOW ? DoorState_Close : DoorState_Open;
-    garageDoorStateImpl->actualDoorStateChanged = true;
+    static unsigned long last_interrupt_time = 0;
+    unsigned long interrupt_time = millis();
+    // If interrupts come faster than 200ms, assume it's a bounce and ignore
+    // Garage doors don't move that fast anyway!
+    if (interrupt_time - last_interrupt_time > 200) 
+    {
+        garageDoorStateImpl->actualDoorState = digitalRead(REED_IO_PULLUP) == LOW ? DoorState_Close : DoorState_Open;
+        garageDoorStateImpl->actualDoorStateChanged = true;
+    }
+    last_interrupt_time = interrupt_time;
 }

@@ -17,7 +17,7 @@
 #include <PubSubClient.h>
 #include <limits.h>
 
-uint16_t const StateCheckInterval_ms = 100;
+uint16_t const StateCheckInterval_ms = 1000;
 uint16_t const PublishAvailableInterval_ms = 30000;
 uint16_t const QueryClimateInterval_ms = 20000;
 uint8_t const willQos = 0;
@@ -248,7 +248,7 @@ void loop (void)
 
   if(0 == StateCheck)
   {
-    garageDoorState.run();
+    garageDoorState.run(StateCheckInterval_ms); // Must be ran at every 1000ms interval for now...
     StateCheck = StateCheckInterval_ms;
   }
 

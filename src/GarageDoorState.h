@@ -12,7 +12,7 @@ public:
     GarageDoorState ();
     ~GarageDoorState ();
 
-    void run (void);
+    void run (uint32_t elapsedTime_ms);
 
     DoorState_t getCurrentDoorState (void) { return reportedDoorState; }
     DoorState_t getExpectedNextDoorState (void) { return targetDoorState; }
@@ -29,7 +29,7 @@ public:
     void bindWebServer (WebServer * in) { webServer = in; }
 
 private:
-    static uint8_t const TransitionTimeoutCount PROGMEM;
+    static uint8_t const TransitionTimeoutCount_s PROGMEM;
     static uint8_t const StateHoldTimeCount PROGMEM;
     void checkCurrentState (void);
     static void updateActualDoorState (void);
