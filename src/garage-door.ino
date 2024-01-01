@@ -90,9 +90,10 @@ PubSubClient mqttClient(MQTT_SERVER, 1883, callback, ethClient);
 
 void setup (void) 
 {
-    // Start Serial
   Serial.begin(115200);
-  webServer.placeString("Hello World!" LINE_BREAK);
+  char szString[StringTable_SingleStringMaxLength];
+  getString(String_HelloWorld, szString);
+  webServer.placeString(szString);
 
   uint32_t shift = 0;
 
@@ -106,10 +107,6 @@ void setup (void)
   stateChanger.bindWebServer(&webServer);
   garageDoorState.bindWebServer(&webServer);
 
-  // LED off, visual indicator when triggered
-  char szString[StringTable_SingleStringMaxLength];
-  getString(String_HelloWorld, szString);
-  webServer.placeString(szString, false);
   previous = 0;
 
   // Start Network (replace with 'Ethernet.begin(mac, ip);' for fixed IP)
@@ -131,10 +128,6 @@ void setup (void)
 
   // Let network have a chance to start up
   delay(1500);
-
-  // Display IP for debugging purposes
-  printIPAddress();
-
 }
 
 void loop (void) 
@@ -255,22 +248,6 @@ void loop (void)
 
   webServer.run();
 }
-
-
-// Print IP for debugging, can be removed if needed
-void printIPAddress (void)
-{
-  Serial.print("My IP address: ");
-  
-  for(uint8_t thisByte = 0; thisByte < 4; thisByte++) {
-    // print the value of each byte of the IP address:
-    Serial.print(Ethernet.localIP()[thisByte], DEC);
-    Serial.print(".");
-  }
-
-  Serial.print(LINE_BREAK);
-}
-
 
 // Publish MQTT data to MQTT broker
 bool PublishMQTTMessage (StringIndex_t sMQTTSubscription, char const * const sMQTTData)
