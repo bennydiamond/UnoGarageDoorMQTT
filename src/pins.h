@@ -6,3 +6,6 @@
 
 #define AM2320_PINVCC 16      // AM2320B VCC supply pin
 #define AM2320_PINGND 17      // AM2320B GND supply pin
+
+#define REED_IO_PULLUP 2
+#define REED_SINK_GND 3

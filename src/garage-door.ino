@@ -16,44 +16,35 @@
 #include <Ethernet.h>
 #include <PubSubClient.h>
 #include <limits.h>
+#include <avr/wdt.h>
 
-// Define Sub's and Pub's
-char const MQTTSubDoorSwitch[] PROGMEM = "garage/door/switch";
-char const MQTTPubDoorStatus[] PROGMEM = "garage/door/status";
-char const MQTTPubAvailable[] PROGMEM = "garage/door/available";
-char const MQTTPubTemperature[] PROGMEM = "garage/door/temperature";
-char const MQTTPubHumidity[] PROGMEM = "garage/door/humidity";
-char const MQTTBrokerrUser[] PROGMEM = "sonoff";
-#define MQTTBrokerrPass MQTTBrokerrUser
-char const MQTTAvailablePayload[] PROGMEM = "online";
-char const MQTTUnavailablePayload[] PROGMEM = "offline";
-
-uint16_t const StateCheckInterval_ms PROGMEM = 1000;
-uint16_t const PublishStatusInterval_ms PROGMEM = 2000;
-uint16_t const PublishAvailableInterval_ms PROGMEM = 30000;
-uint16_t const PublishTemperatureInterval_ms PROGMEM = 60000;
-uint8_t const willQos PROGMEM = 0;
-uint8_t const willRetain PROGMEM = 0;
+uint16_t const StateCheckInterval_ms = 1000;
+uint16_t const PublishAvailableInterval_ms = 30000;
+uint16_t const QueryClimateInterval_ms = 20000;
+uint8_t const willQos = 0;
+uint8_t const willRetain = 0;
+uint8_t const TempSensorStringLen = 4;
+bool RetainMessage = true;
 
 // MQTT Broker
-IPAddress const MQTT_SERVER(192, 168, 1, 254) PROGMEM;
+IPAddress const MQTT_SERVER(192, 168, 1, 254);
 
 // The IP address of the Arduino
-uint8_t const mac[] PROGMEM = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 };
+uint8_t const mac[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 };
 
 // Remove remarks and alter if you want a fixed IP for the Arduino
-IPAddress const ip(192, 168, 1, 200) PROGMEM;
-IPAddress const dns(192, 168, 1, 254) PROGMEM;
-IPAddress const gateway(192, 168, 0, 1) PROGMEM;
-IPAddress const subnet(255,255,254,0) PROGMEM;
+IPAddress const ip(192, 168, 1, 200);
+IPAddress const dns_gateway(192, 168, 0, 3);
+IPAddress const subnet(255,255,254,0);
 
 
 // Delay timer
-static uint32_t publishStatusTimer;
-static uint32_t publishAvailabilityTimer;
-static uint32_t publishTemperatureTimer;
+static uint32_t queryClimateTimer;
 static uint32_t StateCheck = 0;
 static unsigned long previous;
+static char prevTemp[TempSensorStringLen] = "UwU"; // Init with impossible value to trigger publish on boot
+static char prevHumi[TempSensorStringLen] = "UwU"; // Init with impossible value to trigger publish on boot
+static StringIndex_t prevDoorStatus = String_IndexCount; // Init with impossible value to trigger publish on boot
 
 // Ethernet Initialisation
 EthernetClient ethClient;
@@ -62,6 +53,8 @@ StateChanger stateChanger;
 WebServer webServer;
 
 AM232X AM2320;
+
+static bool PublishMQTTMessage (StringIndex_t sMQTTSubscription, char const * const sMQTTData, bool retain = false);
 
 // Callback to Arduino from MQTT (inbound message arrives for a subscription - in this case the door on/off switch)
 void callback (char* topic, uint8_t* payload, unsigned int length) 
@@ -100,31 +93,23 @@ PubSubClient mqttClient(MQTT_SERVER, 1883, callback, ethClient);
 
 void setup (void) 
 {
-    // Start Serial
+  wdt_enable(WDTO_2S);
   Serial.begin(115200);
-  webServer.placeString("Hello World!" LINE_BREAK);
+  char szString[StringTable_SingleStringMaxLength];
+  getString(String_HelloWorld, szString);
+  webServer.placeString(szString);
 
-  uint32_t shift = 0;
-
-  publishStatusTimer = shift;
-  shift += 17;
-  publishAvailabilityTimer = shift;
-  shift += 17;
-  publishTemperatureTimer = shift;
+  queryClimateTimer = 0;
 
   stateChanger.bindGarageDoorState(&garageDoorState);
   stateChanger.bindWebServer(&webServer);
   garageDoorState.bindWebServer(&webServer);
 
-  // LED off, visual indicator when triggered
-  webServer.placeString(String_HelloWorld, false);
-
   previous = 0;
 
   // Start Network (replace with 'Ethernet.begin(mac, ip);' for fixed IP)
-  Ethernet.begin(const_cast<uint8_t *>(mac), ip, dns, gateway, subnet);
+  Ethernet.begin(const_cast<uint8_t *>(mac), ip, dns_gateway, dns_gateway, subnet);
   webServer.placeString("Ethernet init" LINE_BREAK);
-
   // Digital IO 17 act as GND for AM2320B sensor
   pinMode(AM2320_PINGND, OUTPUT);
   digitalWrite(AM2320_PINGND, LOW);
@@ -132,82 +117,129 @@ void setup (void)
   pinMode(AM2320_PINVCC, OUTPUT);
   digitalWrite(AM2320_PINVCC, HIGH);
 
+  delay(100); // Stabilize AM2320 power supply
+  Wire.begin();
   AM2320.begin();
+  AM2320.wakeUp();
   webServer.placeString("Temp/Hum sensor init" LINE_BREAK);
-
+  wdt_reset();
   // Let network have a chance to start up
   delay(1500);
-
-  // Display IP for debugging purposes
-  printIPAddress();
-
+  wdt_reset();
 }
 
 void loop (void) 
 {
   // If not MQTT connected, try connecting
+  bool publishOnBoot = true;
+  
   if(!mqttClient.connected())  
   {
     // Connect to MQTT broker on the openhab server, retry constantly
-    while(mqttClient.connect(String_PorteDeGarage, MQTTBrokerrUser, MQTTBrokerrPass, MQTTPubAvailable, willQos, willRetain, MQTTUnavailablePayload) != 1) 
+    char szString[StringTable_SingleStringMaxLength];
+    char szUserPass[StringTable_MQTTStringMaxLength];
+    char szPubAvail[StringTable_MQTTStringMaxLength];
+    char szUnavailPayload[StringTable_MQTTStringMaxLength];
+    getString(String_PorteDeGarage, szString);
+    getString(MQTTBrokerrUser, szUserPass);
+    getString(MQTTPubAvailable, szPubAvail);
+    getString(MQTTUnavailablePayload, szUnavailPayload);
+    while(mqttClient.connect(szString, szUserPass, szUserPass, szPubAvail, willQos, willRetain, szUnavailPayload) != 1) 
     {
       char szErrorCode[10];
-      webServer.placeString(String_ErrorConnectMQTTState);
+      getString(String_ErrorConnectMQTTState, szString);
+      webServer.placeString(szString);
       snprintf(szErrorCode, 10, "%d", (char)mqttClient.state());
       webServer.placeString(szErrorCode);
       webServer.placeString(")" LINE_BREAK);
       delay(1000);
+      wdt_reset();
     }
     
     // Subscribe to the activate switch on OpenHAB
-    mqttClient.subscribe(MQTTSubDoorSwitch);
+    getString(MQTTSubDoorSwitch, szString);
+    mqttClient.subscribe(szString);
+
+    if(publishOnBoot)
+    {
+      // Publish only once, if successfully published.
+      getString(String_BootMessage, szString);
+      publishOnBoot = PublishMQTTMessage(MQTTPubDoorBoot, szString, RetainMessage) ? false : true;
+    }
+
+    // Publish online
+    getString(MQTTAvailablePayload, szString);
+    PublishMQTTMessage(MQTTPubAvailable, szString);
+    getString(String_Pub, szString);
+    webServer.placeString(szString);
+    getString(MQTTAvailablePayload, szString);
+    webServer.placeString(szString);
+    webServer.placeString(LINE_BREAK);
+  }
+
+  if (garageDoorState.getActualDoorStateChanged())
+  {
+    char szString[StringTable_SingleStringMaxLength];
+    getString(garageDoorState.getActualDoorString(), szString);
+    if(PublishMQTTMessage(MQTTPubDoorDoor, szString, RetainMessage))
+    {
+      getString(String_PubActualDoorState, szString);
+      webServer.placeString(szString);
+      getString(garageDoorState.getActualDoorString(), szString);
+      webServer.placeString(szString);
+      webServer.placeString(LINE_BREAK);
+      garageDoorState.clearActualDoorStateChanged();
+    }
   }
   
-  // Wait a little bit between status checks...
-  if(0 == publishStatusTimer) 
+  StringIndex_t doorStatus = garageDoorState.getDoorString();
+  if(prevDoorStatus != doorStatus)
   {
-    // Where are we right now
-    publishStatusTimer = PublishStatusInterval_ms;
-
-    // Publish Door Status
-    // Send message
-    PublishMQTTMessage(MQTTPubDoorStatus, garageDoorState.getDoorString());  
-    webServer.placeString(String_PubDoorState__);
-    webServer.placeString(garageDoorState.getDoorString());
+    prevDoorStatus = doorStatus;
+    char szString[StringTable_SingleStringMaxLength];
+    getString(doorStatus, szString);
+    PublishMQTTMessage(MQTTPubDoorStatus, szString, RetainMessage);
+    getString(String_PubDoorState, szString);
+    webServer.placeString(szString);
+    getString(doorStatus, szString);
+    webServer.placeString(szString);
     webServer.placeString(LINE_BREAK);
   }
-  if(0 == publishAvailabilityTimer)
-  {
-    publishAvailabilityTimer = PublishAvailableInterval_ms;
 
-    PublishMQTTMessage(MQTTPubAvailable, MQTTAvailablePayload);  
-    webServer.placeString(String_Pub_);
-    webServer.placeString(MQTTAvailablePayload);
-    webServer.placeString(LINE_BREAK);
-  }
-  if(0 == publishTemperatureTimer)
+  if(0 == queryClimateTimer)
   {
-    publishTemperatureTimer = PublishTemperatureInterval_ms;
+    queryClimateTimer = QueryClimateInterval_ms;
 
     if(AM232X_OK == AM2320.read())
     {
-      float const temp = AM2320.temperature;
-      float const hum = AM2320.humidity;
+      float const temp = AM2320.getTemperature();
+      float const hum = AM2320.getHumidity();
 
-      char format[7];
+      char format[TempSensorStringLen + 1]; // +1 for null-terminating char
 
-      dtostrf(temp, 4, 2, format);
-      PublishMQTTMessage(MQTTPubTemperature, format);  
-      webServer.placeString(String_Pub_);
-      webServer.placeString(format);
-      webServer.placeString(LINE_BREAK);
+      dtostrf(temp, TempSensorStringLen, 1, format);
+      if(memcmp(format, prevTemp, TempSensorStringLen))
+      {
+        memcpy(prevTemp, format, TempSensorStringLen);
+        PublishMQTTMessage(MQTTPubTemperature, format, RetainMessage);
+        char szString[StringTable_SingleStringMaxLength];
+        getString(String_Pub, szString);
+        webServer.placeString(szString);
+        webServer.placeString(format);
+        webServer.placeString(LINE_BREAK);
+      }
 
-
-      dtostrf(hum, 4, 2, format);
-      PublishMQTTMessage(MQTTPubHumidity, format);  
-      webServer.placeString(String_Pub_);
-      webServer.placeString(format);
-      webServer.placeString(LINE_BREAK);
+      dtostrf(hum, TempSensorStringLen, 1, format);
+      if(memcmp(format, prevHumi, TempSensorStringLen))
+      {
+        memcpy(prevHumi, format, TempSensorStringLen);
+        PublishMQTTMessage(MQTTPubHumidity, format, RetainMessage);  
+        char szString[StringTable_SingleStringMaxLength];
+        getString(String_Pub, szString);
+        webServer.placeString(szString);
+        webServer.placeString(format);
+        webServer.placeString(LINE_BREAK);
+      }
     }
   }
   // Do it all over again
@@ -217,8 +249,9 @@ void loop (void)
 
   if(0 == StateCheck)
   {
-    garageDoorState.run();
+    garageDoorState.run(StateCheckInterval_ms); // Must be ran at every 1000ms interval for now...
     StateCheck = StateCheckInterval_ms;
+    wdt_reset();
   }
 
   stateChanger.run();
@@ -226,35 +259,22 @@ void loop (void)
   webServer.run();
 }
 
-
-// Print IP for debugging, can be removed if needed
-void printIPAddress (void)
-{
-  Serial.print("My IP address: ");
-  
-  for(uint8_t thisByte = 0; thisByte < 4; thisByte++) {
-    // print the value of each byte of the IP address:
-    Serial.print(Ethernet.localIP()[thisByte], DEC);
-    Serial.print(".");
-  }
-
-  Serial.print(LINE_BREAK);
-}
-
-
 // Publish MQTT data to MQTT broker
-void PublishMQTTMessage (char const * const sMQTTSubscription, char const * const sMQTTData)
+static bool PublishMQTTMessage (StringIndex_t sMQTTSubscription, char const * const sMQTTData, bool retain)
 {
   // Define and send message about door state
-  mqttClient.publish(sMQTTSubscription, sMQTTData); 
+  char szString[StringTable_MQTTStringMaxLength];
+  getString(sMQTTSubscription, szString);
+  bool publishSuccess = mqttClient.publish(szString, sMQTTData, retain); 
 
   // Debug info
   webServer.placeString("Outbound: ");
-  webServer.placeString(sMQTTSubscription);
+  webServer.placeString(szString);
   webServer.placeString(":");
   webServer.placeString(sMQTTData);
   webServer.placeString(LINE_BREAK);
  
+ return publishSuccess;
 }
 
 static void advanceTimers (void)
@@ -269,19 +289,9 @@ static void advanceTimers (void)
       StateCheck--;
     }
 
-    if(publishStatusTimer)
+    if(queryClimateTimer)
     {
-      publishStatusTimer--;
-    }
-
-    if(publishAvailabilityTimer)
-    {
-      publishAvailabilityTimer--;
-    }
-
-    if(publishTemperatureTimer)
-    {
-      publishTemperatureTimer--;
+      queryClimateTimer--;
     }
   }
 }

@@ -3,8 +3,8 @@
 #include "strings.h"
 #include <Arduino.h>
 
-uint16_t const StateChanger::retryTimeout_ms PROGMEM = 3000;
-uint8_t const StateChanger::MaxRetryCount PROGMEM = 5;
+uint16_t const StateChanger::retryTimeout_ms = 3000;
+uint8_t const StateChanger::MaxRetryCount = 5;
 
 StateChanger::StateChanger() :
 retryTimeout(-1),
