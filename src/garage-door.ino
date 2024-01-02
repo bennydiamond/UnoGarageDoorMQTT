@@ -16,6 +16,7 @@
 #include <Ethernet.h>
 #include <PubSubClient.h>
 #include <limits.h>
+#include <avr/wdt.h>
 
 uint16_t const StateCheckInterval_ms = 1000;
 uint16_t const PublishAvailableInterval_ms = 30000;
@@ -93,6 +94,7 @@ PubSubClient mqttClient(MQTT_SERVER, 1883, callback, ethClient);
 
 void setup (void) 
 {
+  wdt_enable(WDTO_2S);
   Serial.begin(115200);
   char szString[StringTable_SingleStringMaxLength];
   getString(String_HelloWorld, szString);
@@ -113,7 +115,6 @@ void setup (void)
   // Start Network (replace with 'Ethernet.begin(mac, ip);' for fixed IP)
   Ethernet.begin(const_cast<uint8_t *>(mac), ip, dns_gateway, dns_gateway, subnet);
   webServer.placeString("Ethernet init" LINE_BREAK);
-
   // Digital IO 17 act as GND for AM2320B sensor
   pinMode(AM2320_PINGND, OUTPUT);
   digitalWrite(AM2320_PINGND, LOW);
@@ -126,9 +127,10 @@ void setup (void)
   AM2320.begin();
   AM2320.wakeUp();
   webServer.placeString("Temp/Hum sensor init" LINE_BREAK);
-
+  wdt_reset();
   // Let network have a chance to start up
   delay(1500);
+  wdt_reset();
 }
 
 void loop (void) 
@@ -156,6 +158,7 @@ void loop (void)
       webServer.placeString(szErrorCode);
       webServer.placeString(")" LINE_BREAK);
       delay(1000);
+      wdt_reset();
     }
     
     // Subscribe to the activate switch on OpenHAB
@@ -258,6 +261,7 @@ void loop (void)
   {
     garageDoorState.run(StateCheckInterval_ms); // Must be ran at every 1000ms interval for now...
     StateCheck = StateCheckInterval_ms;
+    wdt_reset();
   }
 
   stateChanger.run();
