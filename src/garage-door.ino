@@ -39,7 +39,6 @@ IPAddress const subnet(255,255,254,0);
 
 
 // Delay timer
-static uint32_t publishAvailabilityTimer;
 static uint32_t queryClimateTimer;
 static uint32_t StateCheck = 0;
 static unsigned long previous;
@@ -100,11 +99,7 @@ void setup (void)
   getString(String_HelloWorld, szString);
   webServer.placeString(szString);
 
-  uint32_t shift = 0;
-
-  publishAvailabilityTimer = shift;
-  shift += 17;
-  queryClimateTimer = shift;
+  queryClimateTimer = 0;
 
   stateChanger.bindGarageDoorState(&garageDoorState);
   stateChanger.bindWebServer(&webServer);
@@ -171,13 +166,8 @@ void loop (void)
       getString(String_BootMessage, szString);
       publishOnBoot = PublishMQTTMessage(MQTTPubDoorBoot, szString, RetainMessage) ? false : true;
     }
-  }
 
-  if(0 == publishAvailabilityTimer)
-  {
-    publishAvailabilityTimer = PublishAvailableInterval_ms;
-
-    char szString[StringTable_SingleStringMaxLength];
+    // Publish online
     getString(MQTTAvailablePayload, szString);
     PublishMQTTMessage(MQTTPubAvailable, szString);
     getString(String_Pub, szString);
@@ -297,11 +287,6 @@ static void advanceTimers (void)
     if(StateCheck)
     {
       StateCheck--;
-    }
-
-    if(publishAvailabilityTimer)
-    {
-      publishAvailabilityTimer--;
     }
 
     if(queryClimateTimer)
