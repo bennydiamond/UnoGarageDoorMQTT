@@ -33,8 +33,7 @@ uint8_t const mac[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 };
 
 // Remove remarks and alter if you want a fixed IP for the Arduino
 IPAddress const ip(192, 168, 1, 200);
-IPAddress const dns(192, 168, 1, 254);
-IPAddress const gateway(192, 168, 0, 1);
+IPAddress const dns_gateway(192, 168, 0, 3);
 IPAddress const subnet(255,255,254,0);
 
 
@@ -112,7 +111,7 @@ void setup (void)
   previous = 0;
 
   // Start Network (replace with 'Ethernet.begin(mac, ip);' for fixed IP)
-  Ethernet.begin(const_cast<uint8_t *>(mac), ip, dns, gateway, subnet);
+  Ethernet.begin(const_cast<uint8_t *>(mac), ip, dns_gateway, dns_gateway, subnet);
   webServer.placeString("Ethernet init" LINE_BREAK);
 
   // Digital IO 17 act as GND for AM2320B sensor
@@ -135,6 +134,8 @@ void setup (void)
 void loop (void) 
 {
   // If not MQTT connected, try connecting
+  bool publishOnBoot = true;
+  
   if(!mqttClient.connected())  
   {
     // Connect to MQTT broker on the openhab server, retry constantly
@@ -160,6 +161,13 @@ void loop (void)
     // Subscribe to the activate switch on OpenHAB
     getString(MQTTSubDoorSwitch, szString);
     mqttClient.subscribe(szString);
+
+    if(publishOnBoot)
+    {
+      // Publish only once, if successfully published.
+      getString(String_BootMessage, szString);
+      publishOnBoot = PublishMQTTMessage(MQTTPubDoorBoot, szString, RetainMessage) ? false : true;
+    }
   }
 
   if(0 == publishAvailabilityTimer)

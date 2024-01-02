@@ -19,12 +19,14 @@ typedef enum e_StringIndex_t
   String_StateReachFailed,
   String_DoorStoppedMid,
   String_SensorError,
+  String_BootMessage,
   String_DoorStateUnknown,
   String_DoorStateClose,
   String_DoorStateOpen,
 
   // Define Sub's and Pub's
   MQTTSubDoorSwitch,
+  MQTTPubDoorBoot,
   MQTTPubDoorStatus,
   MQTTPubDoorDoor,
   MQTTPubAvailable,

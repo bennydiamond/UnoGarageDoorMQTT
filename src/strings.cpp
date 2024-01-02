@@ -12,11 +12,13 @@ char const String_StateReached_[] PROGMEM          = "State reached." LINE_BREAK
 char const String_StateReachFailed_[] PROGMEM      = "State reach failed." LINE_BREAK;
 char const String_DoorStoppedMid_[] PROGMEM        = "Door Stopped mid" LINE_BREAK;
 char const String_SensorError_[] PROGMEM           = "Sensor Error" LINE_BREAK;
+char const String_BootMessage_[] PROGMEM           = "Message sent once on boot";
 char const String_DoorStateUnknown_[] PROGMEM      = "Unknown";
 char const String_DoorStateClose_[] PROGMEM        = "Close";
 char const String_DoorStateOpen_[] PROGMEM         = "Open";
 
 char const MQTTSubDoorSwitch_[] PROGMEM      = "garage/door/switch";
+char const MQTTPubDoorBoot_[] PROGMEM        = "garage/door/boot";
 char const MQTTPubDoorStatus_[] PROGMEM      = "garage/door/status";
 char const MQTTPubDoorDoor_[] PROGMEM        = "garage/door/door";
 char const MQTTPubAvailable_[] PROGMEM       = "garage/door/available";
@@ -40,11 +42,13 @@ char const * const String_table[String_IndexCount] PROGMEM =
   String_StateReachFailed_,
   String_DoorStoppedMid_,
   String_SensorError_,
+  String_BootMessage_,
   String_DoorStateUnknown_,
   String_DoorStateClose_,
   String_DoorStateOpen_,
 
   MQTTSubDoorSwitch_,
+  MQTTPubDoorBoot_,
   MQTTPubDoorStatus_,
   MQTTPubDoorDoor_,
   MQTTPubAvailable_,
