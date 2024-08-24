@@ -1,5 +1,7 @@
 # UnoGarageDoorMQTT
 
+## This project is now archived. I moved home and no longer require this thing.
+
 Requires Arduino Ethernet Shield
 
 Use non-latching digital Hall effect sensors for both Open and Close door state
